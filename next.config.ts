@@ -8,18 +8,6 @@ const nextConfig: NextConfig = {
 
   allowedDevOrigins: ["192.168.0.242"],
 
-  async rewrites() {
-    const endpoint = process.env.S3_ENDPOINT;
-    const bucket = process.env.R2_BUCKET_NAME;
-    if (!endpoint || !bucket) return [];
-    return [
-      {
-        source: "/photos/:path*",
-        destination: `${endpoint}/${bucket}/:path*`,
-      },
-    ];
-  },
-
   images: {
     remotePatterns: [
       // Google profile pictures
