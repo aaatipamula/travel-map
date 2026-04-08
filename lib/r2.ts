@@ -24,10 +24,9 @@ const r2 = new S3Client({
 });
 
 const BUCKET = process.env.R2_BUCKET_NAME!;
-const PUBLIC_URL = process.env.R2_PUBLIC_URL!;
 
 export function r2PublicUrl(key: string): string {
-  return `${PUBLIC_URL}/${key}`;
+  return `/photos/${key}`;
 }
 
 export async function createPresignedPutUrl(
