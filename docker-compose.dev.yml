@@ -1,0 +1,60 @@
+# Local development backing services only.
+#
+# Run these first:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Then run the Next.js dev server locally:
+#   npm run dev
+#
+# Your .env.local should point at these services:
+#   TURSO_DATABASE_URL=http://localhost:8080
+#   TURSO_AUTH_TOKEN=          (leave blank)
+#   S3_ENDPOINT=http://localhost:9000
+#   S3_FORCE_PATH_STYLE=true
+#   R2_ACCESS_KEY_ID=devuser
+#   R2_SECRET_ACCESS_KEY=devpassword
+#   R2_BUCKET_NAME=mom-travels-photos
+#   R2_PUBLIC_URL=http://localhost:9000/mom-travels-photos
+
+services:
+
+  # ── LibSQL database ─────────────────────────────────────────────────────────
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    environment:
+      - SQLD_NODE=primary
+    ports:
+      - "8080:8080"
+    volumes:
+      - sqld_dev_data:/var/lib/sqld
+
+  # ── MinIO object storage ────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: devuser
+      MINIO_ROOT_PASSWORD: devpassword
+    ports:
+      - "9000:9000"   # S3 API — used by the app
+      - "9001:9001"   # Web console — open http://localhost:9001 to browse files
+    volumes:
+      - minio_dev_data:/data
+    command: server /data --console-address ":9001"
+
+  # Creates the bucket automatically on first start
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5;
+        mc alias set dev http://minio:9000 devuser devpassword;
+        mc mb dev/mom-travels-photos --ignore-existing;
+        mc anonymous set public dev/mom-travels-photos;
+        echo 'Bucket ready.';
+      "
+
+volumes:
+  sqld_dev_data:
+  minio_dev_data:

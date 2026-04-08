@@ -1,0 +1,84 @@
+services:
+
+  # ── LibSQL database (self-hosted Turso-compatible) ──────────────────────────
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    restart: unless-stopped
+    environment:
+      - SQLD_NODE=primary
+    volumes:
+      - sqld_data:/var/lib/sqld
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Not exposed externally — only the app container talks to it
+
+  # ── MinIO object storage (S3-compatible, replaces Cloudflare R2) ────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Expose the MinIO web console so you can create buckets and manage files.
+    # After first deploy: open http://your-server:9001, log in, create a bucket
+    # named ${R2_BUCKET_NAME} and set its access policy to public.
+    ports:
+      - "9001:9001"
+    # Port 9000 (API) is NOT exposed externally — the app uses the internal network
+
+  # ── Next.js application ─────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      sqld:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # ── Auth.js ──────────────────────────────────────────────────────────────
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET}
+      # Required when running behind a reverse proxy (Dokploy)
+      AUTH_URL: ${AUTH_URL}
+      AUTH_TRUST_HOST: "true"
+
+      # ── Google Photos OAuth ──────────────────────────────────────────────────
+      GOOGLE_PHOTOS_CLIENT_ID: ${GOOGLE_PHOTOS_CLIENT_ID}
+      GOOGLE_PHOTOS_CLIENT_SECRET: ${GOOGLE_PHOTOS_CLIENT_SECRET}
+      GOOGLE_PHOTOS_REDIRECT_URI: ${GOOGLE_PHOTOS_REDIRECT_URI}
+
+      # ── Database (internal Docker network) ──────────────────────────────────
+      TURSO_DATABASE_URL: http://sqld:8080
+      TURSO_AUTH_TOKEN: ""
+
+      # ── MinIO storage (internal Docker network) ──────────────────────────────
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      R2_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      R2_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      # Public URL must be reachable from the browser (your server's public address)
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+
+    ports:
+      - "3000:3000"
+
+volumes:
+  sqld_data:
+  minio_data:
