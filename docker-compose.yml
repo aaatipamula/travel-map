@@ -8,12 +8,6 @@ services:
       - SQLD_NODE=primary
     volumes:
       - sqld_data:/var/lib/sqld
-    healthcheck:
-      test: ["CMD-SHELL", "echo > /dev/tcp/localhost/8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
     # Not exposed externally — only the app container talks to it
 
   # ── MinIO object storage (S3-compatible, replaces Cloudflare R2) ────────────
@@ -27,7 +21,7 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "mc ready local 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -36,7 +30,24 @@ services:
     # named ${R2_BUCKET_NAME} and set its access policy to public.
     ports:
       - "9001:9001"
-    # Port 9000 (API) is NOT exposed externally — the app uses the internal network
+
+  # ── MinIO bucket setup (runs once, then exits) ─────────────────────────────
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set prod http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD;
+        mc mb prod/$$R2_BUCKET_NAME --ignore-existing;
+        mc anonymous set public prod/$$R2_BUCKET_NAME;
+        echo 'Bucket ready.';
+      "
 
   # ── Next.js application ─────────────────────────────────────────────────────
   app:
@@ -46,7 +57,7 @@ services:
     restart: unless-stopped
     depends_on:
       sqld:
-        condition: service_healthy
+        condition: service_started
       minio:
         condition: service_healthy
     environment:
