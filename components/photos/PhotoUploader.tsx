@@ -42,7 +42,7 @@ export default function PhotoUploader({ countryCode, onUploaded }: Props) {
       });
 
       if (!presignRes.ok) throw new Error("Failed to get upload URL");
-      const { uploadUrl, r2Key, publicUrl } = await presignRes.json();
+      const { uploadUrl, r2Key } = await presignRes.json();
 
       // 2. PUT directly to R2 using XHR for progress
       await new Promise<void>((resolve, reject) => {
@@ -69,7 +69,6 @@ export default function PhotoUploader({ countryCode, onUploaded }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           r2Key,
-          r2Url: publicUrl,
           filename: file.name,
           mimeType: file.type,
           sizeBytes: file.size,

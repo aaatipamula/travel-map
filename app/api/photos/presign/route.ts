@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { createPresignedPutUrl, r2PublicUrl } from "@/lib/r2";
+import { createPresignedPutUrl } from "@/lib/r2";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
   const r2Key = `uploads/${session.user.id}/${countryCode.toUpperCase()}/${crypto.randomUUID()}.${ext}`;
 
   const uploadUrl = await createPresignedPutUrl(r2Key, mimeType);
-  const publicUrl = r2PublicUrl(r2Key);
 
-  return Response.json({ uploadUrl, r2Key, publicUrl });
+  return Response.json({ uploadUrl, r2Key });
 }

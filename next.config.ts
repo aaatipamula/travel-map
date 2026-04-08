@@ -8,26 +8,24 @@ const nextConfig: NextConfig = {
 
   allowedDevOrigins: ["192.168.0.242"],
 
+  async rewrites() {
+    const endpoint = process.env.S3_ENDPOINT;
+    const bucket = process.env.R2_BUCKET_NAME;
+    if (!endpoint || !bucket) return [];
+    return [
+      {
+        source: "/photos/:path*",
+        destination: `${endpoint}/${bucket}/:path*`,
+      },
+    ];
+  },
+
   images: {
     remotePatterns: [
       // Google profile pictures
       {
         protocol: "https",
         hostname: "lh3.googleusercontent.com",
-      },
-      // MinIO (dev / self-hosted) — http allowed for local
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
-      {
-        protocol: "http",
-        hostname: "minio",
-      },
-      // Cloudflare R2 / any https host — tighten to your specific domain in production
-      {
-        protocol: "https",
-        hostname: "**",
       },
     ],
   },

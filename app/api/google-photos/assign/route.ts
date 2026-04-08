@@ -53,8 +53,6 @@ export async function POST(request: NextRequest) {
 
   // Upload to R2
   await putObject(r2Key, Buffer.from(imageBytes), mimeType);
-  const publicUrl = r2PublicUrl(r2Key);
-
   // Create DB record
   const [photo] = await db
     .insert(photos)
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       countryCode: countryCode.toUpperCase(),
       r2Key,
-      r2Url: publicUrl,
+      r2Url: r2PublicUrl(r2Key),
       filename,
       mimeType,
       sizeBytes: imageBytes.byteLength,
