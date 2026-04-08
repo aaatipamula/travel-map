@@ -11,7 +11,7 @@ export default async function LoginPage() {
         <div className="mb-8 text-center">
           <div className="mb-3 text-4xl">✈️</div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Mom&apos;s Travels
+            Travel Map
           </h1>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
             Sign in to explore your travel map

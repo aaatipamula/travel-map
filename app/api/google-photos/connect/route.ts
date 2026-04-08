@@ -11,7 +11,7 @@ export async function GET() {
     client_id: process.env.GOOGLE_PHOTOS_CLIENT_ID!,
     redirect_uri: process.env.GOOGLE_PHOTOS_REDIRECT_URI!,
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/photoslibrary.readonly",
+    scope: "https://www.googleapis.com/auth/photospicker.mediaitems.readonly",
     access_type: "offline",
     prompt: "consent",
     state: session.user.id, // simple state: user id

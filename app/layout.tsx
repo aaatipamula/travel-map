@@ -9,7 +9,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Mom's Travels",
+  title: "Travel Map",
   description: "Track countries visited and relive the memories.",
 };
 

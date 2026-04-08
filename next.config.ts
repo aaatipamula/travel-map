@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // the server without node_modules being present in the image.
   output: "standalone",
 
+  allowedDevOrigins: ["192.168.0.242"],
+
   images: {
     remotePatterns: [
       // Google profile pictures

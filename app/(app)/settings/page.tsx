@@ -5,7 +5,7 @@ import { googlePhotosTokens } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Image from "next/image";
 
-export const metadata: Metadata = { title: "Settings — Mom's Travels" };
+export const metadata: Metadata = { title: "Settings — Travel Map" };
 
 export default async function SettingsPage({
   searchParams,
@@ -22,6 +22,7 @@ export default async function SettingsPage({
     : null;
 
   return (
+    <div className="flex-1 overflow-y-auto">
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
         Settings
@@ -120,6 +121,7 @@ export default async function SettingsPage({
           </a>
         )}
       </section>
+    </div>
     </div>
   );
 }

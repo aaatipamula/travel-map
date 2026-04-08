@@ -1,54 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import type { MediaItem } from "@/lib/google-photos";
+import type { PickerMediaItem } from "@/lib/google-photos";
 
 interface Props {
   countryCode: string;
   onAssigned: () => void;
 }
 
-interface SearchResult {
-  mediaItems?: MediaItem[];
-  nextPageToken?: string;
-  connected?: boolean;
-}
+type Step = "idle" | "picking" | "selected" | "assigning";
 
 export default function GooglePhotosBrowser({ countryCode, onAssigned }: Props) {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [nextPageToken, setNextPageToken] = useState<string | undefined>();
+  const [step, setStep] = useState<Step>("idle");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [items, setItems] = useState<PickerMediaItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [assigning, setAssigning] = useState(false);
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [notReady, setNotReady] = useState(false);
 
-  async function search(pageToken?: string) {
-    if (!startDate || !endDate) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ startDate, endDate });
-      if (pageToken) params.set("pageToken", pageToken);
-      const res = await fetch(`/api/google-photos/list?${params}`);
-      const data: SearchResult = await res.json();
+  async function openPicker() {
+    const res = await fetch("/api/google-photos/session", { method: "POST" });
 
-      if (res.status === 403) {
-        setConnected(false);
-        return;
-      }
-
-      setConnected(true);
-      if (pageToken) {
-        setItems((prev) => [...prev, ...(data.mediaItems ?? [])]);
-      } else {
-        setItems(data.mediaItems ?? []);
-      }
-      setNextPageToken(data.nextPageToken);
-    } finally {
-      setLoading(false);
+    if (res.status === 403) {
+      setConnected(false);
+      return;
     }
+
+    const data = await res.json();
+    setSessionId(data.sessionId);
+    setConnected(true);
+    setStep("picking");
+    window.open(data.pickerUri, "_blank", "noopener,noreferrer");
+  }
+
+  async function checkDone() {
+    if (!sessionId) return;
+    setNotReady(false);
+
+    const res = await fetch(`/api/google-photos/session/${sessionId}`);
+    const data = await res.json();
+
+    if (!data.ready) {
+      setNotReady(true);
+      return;
+    }
+
+    const mediaItems: PickerMediaItem[] = data.mediaItems ?? [];
+    setItems(mediaItems);
+    // Pre-select all
+    setSelected(new Set(mediaItems.map((i) => i.id)));
+    setStep("selected");
   }
 
   function toggleSelect(id: string) {
@@ -61,7 +62,7 @@ export default function GooglePhotosBrowser({ countryCode, onAssigned }: Props) 
   }
 
   async function assignSelected() {
-    setAssigning(true);
+    setStep("assigning");
     const toAssign = items.filter((item) => selected.has(item.id));
     try {
       await Promise.all(
@@ -71,23 +72,41 @@ export default function GooglePhotosBrowser({ countryCode, onAssigned }: Props) 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               googlePhotoId: item.id,
-              baseUrl: item.baseUrl,
-              filename: item.filename,
+              baseUrl: item.mediaFile.baseUrl,
+              filename: item.mediaFile.filename,
               countryCode,
-              takenAt: item.mediaMetadata?.creationTime
-                ? Math.floor(
-                    new Date(item.mediaMetadata.creationTime).getTime() / 1000
-                  )
+              takenAt: item.createTime
+                ? Math.floor(new Date(item.createTime).getTime() / 1000)
                 : undefined,
             }),
           })
         )
       );
+
+      // Clean up session
+      if (sessionId) {
+        fetch(`/api/google-photos/session/${sessionId}`, { method: "DELETE" });
+      }
+
+      setStep("idle");
+      setSessionId(null);
+      setItems([]);
       setSelected(new Set());
       onAssigned();
-    } finally {
-      setAssigning(false);
+    } catch {
+      setStep("selected");
     }
+  }
+
+  function reset() {
+    if (sessionId) {
+      fetch(`/api/google-photos/session/${sessionId}`, { method: "DELETE" });
+    }
+    setStep("idle");
+    setSessionId(null);
+    setItems([]);
+    setSelected(new Set());
+    setNotReady(false);
   }
 
   if (connected === false) {
@@ -106,109 +125,117 @@ export default function GooglePhotosBrowser({ countryCode, onAssigned }: Props) 
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {/* Date filter */}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="flex flex-1 flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500">From</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-          />
-        </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500">To</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-          />
-        </div>
-        <div className="flex items-end">
+  if (step === "idle") {
+    return (
+      <button
+        onClick={openPicker}
+        className="w-full rounded-lg bg-blue-500 py-2 text-sm font-medium text-white hover:bg-blue-600"
+      >
+        Open Google Photos Picker
+      </button>
+    );
+  }
+
+  if (step === "picking") {
+    return (
+      <div className="space-y-3 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800">
+        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          Google Photos opened in a new tab. Select the photos you want to add, then come back here.
+        </p>
+        {notReady && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            No photos selected yet — finish selecting in the picker tab first.
+          </p>
+        )}
+        <div className="flex gap-2">
           <button
-            onClick={() => search()}
-            disabled={!startDate || !endDate || loading}
-            className="rounded-lg bg-blue-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+            onClick={checkDone}
+            className="flex-1 rounded-lg bg-blue-500 py-2 text-sm font-medium text-white hover:bg-blue-600"
           >
-            {loading ? "Searching…" : "Search"}
+            Done selecting
+          </button>
+          <button
+            onClick={reset}
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          >
+            Cancel
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* Results grid */}
-      {items.length > 0 && (
-        <>
-          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-            {items.map((item) => {
-              const isSelected = selected.has(item.id);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => toggleSelect(item.id)}
-                  className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
-                    isSelected
-                      ? "border-blue-500"
-                      : "border-transparent hover:border-zinc-300"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`${item.baseUrl}=w200-h200-c`}
-                    alt={item.filename}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                  {isSelected && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/30">
-                      <div className="rounded-full bg-blue-500 p-0.5 text-white">
-                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
+  if (step === "selected" || step === "assigning") {
+    const assigning = step === "assigning";
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {items.length} photo{items.length !== 1 ? "s" : ""} selected
+          </p>
+          {!assigning && (
+            <button
+              onClick={reset}
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+            >
+              Start over
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+          {items.map((item) => {
+            const isSelected = selected.has(item.id);
+            return (
+              <button
+                key={item.id}
+                onClick={() => !assigning && toggleSelect(item.id)}
+                disabled={assigning}
+                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
+                  isSelected
+                    ? "border-blue-500"
+                    : "border-transparent hover:border-zinc-300"
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`${item.mediaFile.baseUrl}=w200-h200-c`}
+                  alt={item.mediaFile.filename}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+                {isSelected && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-blue-500/30">
+                    <div className="rounded-full bg-blue-500 p-0.5 text-white">
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-          {nextPageToken && (
-            <button
-              onClick={() => search(nextPageToken)}
-              disabled={loading}
-              className="w-full rounded-lg border border-zinc-300 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800"
-            >
-              {loading ? "Loading…" : "Load more"}
-            </button>
-          )}
+        {selected.size > 0 && (
+          <button
+            onClick={assignSelected}
+            disabled={assigning}
+            className="w-full rounded-lg bg-blue-500 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+          >
+            {assigning
+              ? `Importing ${selected.size} photo${selected.size > 1 ? "s" : ""}…`
+              : `Add ${selected.size} photo${selected.size > 1 ? "s" : ""} to ${countryCode}`}
+          </button>
+        )}
+      </div>
+    );
+  }
 
-          {selected.size > 0 && (
-            <button
-              onClick={assignSelected}
-              disabled={assigning}
-              className="w-full rounded-lg bg-blue-500 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
-            >
-              {assigning
-                ? `Importing ${selected.size} photo${selected.size > 1 ? "s" : ""}…`
-                : `Add ${selected.size} photo${selected.size > 1 ? "s" : ""} to ${countryCode}`}
-            </button>
-          )}
-        </>
-      )}
-
-      {!loading && items.length === 0 && connected === true && (
-        <p className="py-4 text-center text-sm text-zinc-400">
-          No photos found for the selected date range.
-        </p>
-      )}
-    </div>
-  );
+  return null;
 }

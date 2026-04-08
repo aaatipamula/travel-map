@@ -13,8 +13,8 @@
 #   S3_FORCE_PATH_STYLE=true
 #   R2_ACCESS_KEY_ID=devuser
 #   R2_SECRET_ACCESS_KEY=devpassword
-#   R2_BUCKET_NAME=mom-travels-photos
-#   R2_PUBLIC_URL=http://localhost:9000/mom-travels-photos
+#   R2_BUCKET_NAME=travel-map-photos
+#   R2_PUBLIC_URL=http://localhost:9000/travel-map-photos
 
 services:
 
@@ -50,8 +50,8 @@ services:
       /bin/sh -c "
         sleep 5;
         mc alias set dev http://minio:9000 devuser devpassword;
-        mc mb dev/mom-travels-photos --ignore-existing;
-        mc anonymous set public dev/mom-travels-photos;
+        mc mb dev/travel-map-photos --ignore-existing;
+        mc anonymous set public dev/travel-map-photos;
         echo 'Bucket ready.';
       "
 

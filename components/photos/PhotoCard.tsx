@@ -22,6 +22,7 @@ export default function PhotoCard({ photo, onDelete }: Props) {
           src={photo.r2Url}
           alt={photo.caption ?? photo.filename}
           fill
+          unoptimized
           className="object-cover"
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />

@@ -17,7 +17,7 @@ export default function Navbar() {
           href="/map"
           className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
         >
-          ✈️ Mom&apos;s Travels
+          ✈️ Travel Map
         </Link>
 
         {/* Desktop nav */}
@@ -36,10 +36,10 @@ export default function Navbar() {
           </Link>
 
           {session?.user && (
-            <div className="relative" onBlur={() => setMenuOpen(false)}>
+            <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setMenuOpen(false); }}>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center gap-2 rounded-full"
+                className="flex items-center gap-2 rounded-full cursor-pointer"
               >
                 {session.user.image ? (
                   <Image
