@@ -88,7 +88,7 @@ services:
       R2_PUBLIC_URL: ${R2_PUBLIC_URL}
 
     ports:
-      - "4000:4000"
+      - "3000:4000"
 
 volumes:
   sqld_data:
