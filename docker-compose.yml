@@ -29,7 +29,8 @@ services:
     # After first deploy: open http://your-server:9001, log in, create a bucket
     # named ${R2_BUCKET_NAME} and set its access policy to public.
     ports:
-      - "9001:9001"
+      - "9000:9000"
+      - "9001:9001"              # MinIO console
 
   # ── MinIO bucket setup (runs once, then exits) ─────────────────────────────
   createbuckets:
