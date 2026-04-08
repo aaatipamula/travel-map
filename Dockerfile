@@ -46,6 +46,10 @@ COPY --from=builder /app/scripts/migrate.mjs     ./scripts/migrate.mjs
 COPY --from=builder /app/scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Packages needed by migrate.mjs (not included in standalone output)
+COPY --from=builder /app/node_modules/drizzle-orm        ./node_modules/drizzle-orm
+COPY --from=builder /app/node_modules/@libsql            ./node_modules/@libsql
+
 USER nextjs
 EXPOSE 3000
 
